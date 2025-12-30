@@ -3,10 +3,8 @@ import { ParentProduct, ProductVariant, NocoDBResponse } from '@/types/product';
 const API_BASE = 'https://nocodb.arsalanq.synology.me';
 const AUTH_TOKEN = 'TXNwjfpLHecVqeiXHx1T9Jmq4zLLmFg8JlgvvcR4';
 
-// NocoDB table IDs - UPDATE THESE with your actual table IDs from NocoDB
-// Find them in NocoDB: Open table → Click on "..." menu → "Copy API URL" or check API docs
-const PARENTS_TABLE_ID = 'product_content_parents'; // Replace with actual table ID like "tbl_xxxxx"
-const VARIANTS_TABLE_ID = 'product_content_variants'; // Replace with actual table ID like "tbl_xxxxx"
+const PARENTS_TABLE_ID = 'm7jqugm928di2k5';
+const VARIANTS_TABLE_ID = 'mjqgfywpi69sbnl';
 
 const headers = {
   'xc-token': AUTH_TOKEN,
