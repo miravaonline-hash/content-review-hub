@@ -1,15 +1,123 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Database, Webhook, Loader2, Package, Columns, ArrowRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Database, Webhook, Loader2, Package, Columns, ArrowRight, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ShopifyRawWebhook, ProductsTable, ShopifyWebhookVariant, ProductsTableVariant } from '@/types/product';
-import { fetchRawWebhook, fetchProductsTableData } from '@/services/nocodbApi';
+import { ShopifyRawWebhook, ProductsTable, ShopifyWebhookVariant, ProductsTableVariant, ProductVariant } from '@/types/product';
+import { fetchRawWebhook, fetchProductsTableData, fetchProductVariants } from '@/services/nocodbApi';
 import { cn } from '@/lib/utils';
 
 interface SourceDataViewerProps {
   shopifyProductId: string;
+  parentVariantCount?: number;
 }
 
 type ViewMode = 'individual' | 'comparison';
+
+interface VariantDiscrepancy {
+  type: 'missing_in_content' | 'missing_in_shopify' | 'count_mismatch';
+  message: string;
+  details: string[];
+}
+
+function DiscrepancyAlert({ 
+  shopifyVariants, 
+  contentVariants,
+  parentVariantCount
+}: { 
+  shopifyVariants: ShopifyWebhookVariant[];
+  contentVariants: ProductVariant[];
+  parentVariantCount?: number;
+}) {
+  const discrepancies: VariantDiscrepancy[] = [];
+  
+  // Get variant names from Shopify
+  const shopifyVariantNames = shopifyVariants.map(v => 
+    v.title || [v.option1, v.option2, v.option3].filter(Boolean).join(' / ') || `ID: ${v.id}`
+  );
+  
+  // Get variant names from content variants table
+  const contentVariantNames = contentVariants.map(v => v.variant_name);
+  
+  // Check for variants in Shopify but not in content
+  const missingInContent = shopifyVariantNames.filter(name => 
+    !contentVariantNames.some(cn => cn?.toLowerCase() === name.toLowerCase())
+  );
+  
+  // Check for variants in content but not in Shopify
+  const missingInShopify = contentVariantNames.filter(name => 
+    !shopifyVariantNames.some(sn => sn?.toLowerCase() === name?.toLowerCase())
+  );
+  
+  // Count mismatch
+  if (parentVariantCount !== undefined && contentVariants.length !== parentVariantCount) {
+    discrepancies.push({
+      type: 'count_mismatch',
+      message: `Parent expects ${parentVariantCount} variants, but ${contentVariants.length} found in content table`,
+      details: []
+    });
+  }
+  
+  if (shopifyVariants.length !== contentVariants.length) {
+    discrepancies.push({
+      type: 'count_mismatch',
+      message: `Shopify has ${shopifyVariants.length} variants, Content table has ${contentVariants.length}`,
+      details: []
+    });
+  }
+  
+  if (missingInContent.length > 0) {
+    discrepancies.push({
+      type: 'missing_in_content',
+      message: `${missingInContent.length} Shopify variant(s) not found in Content table`,
+      details: missingInContent
+    });
+  }
+  
+  if (missingInShopify.length > 0) {
+    discrepancies.push({
+      type: 'missing_in_shopify',
+      message: `${missingInShopify.length} Content variant(s) not in Shopify webhook`,
+      details: missingInShopify
+    });
+  }
+  
+  if (discrepancies.length === 0) {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400">
+        <CheckCircle className="w-4 h-4 flex-shrink-0" />
+        <span className="text-sm font-medium">Variants match between Shopify and Content table</span>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+        <AlertTriangle className="w-4 h-4" />
+        <span className="text-sm font-semibold">Variant Discrepancies Detected</span>
+      </div>
+      <div className="space-y-2">
+        {discrepancies.map((d, idx) => (
+          <div 
+            key={idx} 
+            className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+          >
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">{d.message}</p>
+            {d.details.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {d.details.map((detail, i) => (
+                  <li key={i} className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-amber-500" />
+                    {detail}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === '') return null;
@@ -125,11 +233,13 @@ function VariantCard({
   );
 }
 
-export function SourceDataViewer({ shopifyProductId }: SourceDataViewerProps) {
+export function SourceDataViewer({ shopifyProductId, parentVariantCount }: SourceDataViewerProps) {
   const [rawWebhook, setRawWebhook] = useState<ShopifyRawWebhook | null>(null);
   const [productsData, setProductsData] = useState<ProductsTable | null>(null);
+  const [contentVariants, setContentVariants] = useState<ProductVariant[]>([]);
   const [loadingWebhook, setLoadingWebhook] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingContentVariants, setLoadingContentVariants] = useState(false);
   const [expandedSection, setExpandedSection] = useState<'webhook' | 'products' | 'comparison' | null>(null);
   const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<ViewMode>('individual');
@@ -206,11 +316,42 @@ export function SourceDataViewer({ shopifyProductId }: SourceDataViewerProps) {
     setExpandedSection('comparison');
   };
 
+  // Load content variants when component mounts or shopifyProductId changes
   useEffect(() => {
     setRawWebhook(null);
     setProductsData(null);
+    setContentVariants([]);
     setExpandedSection(null);
     setExpandedVariants({});
+    
+    // Automatically load content variants for discrepancy checking
+    const loadContentVariants = async () => {
+      setLoadingContentVariants(true);
+      try {
+        const data = await fetchProductVariants(shopifyProductId);
+        setContentVariants(data);
+      } catch (error) {
+        console.error('Failed to load content variants:', error);
+      } finally {
+        setLoadingContentVariants(false);
+      }
+    };
+    
+    // Also auto-load webhook data for discrepancy checking
+    const loadWebhook = async () => {
+      setLoadingWebhook(true);
+      try {
+        const data = await fetchRawWebhook(shopifyProductId);
+        setRawWebhook(data);
+      } catch (error) {
+        console.error('Failed to load webhook data:', error);
+      } finally {
+        setLoadingWebhook(false);
+      }
+    };
+    
+    loadContentVariants();
+    loadWebhook();
   }, [shopifyProductId]);
 
   const parsePayload = (payload: string | object): Record<string, unknown> => {
@@ -245,6 +386,7 @@ export function SourceDataViewer({ shopifyProductId }: SourceDataViewerProps) {
   const productsVariants = productsData ? parseVariants(productsData.variants) : [];
 
   const isLoadingComparison = loadingWebhook || loadingProducts;
+  const isLoadingDiscrepancy = loadingWebhook || loadingContentVariants;
 
   return (
     <div className="space-y-3 mb-8">
@@ -270,6 +412,22 @@ export function SourceDataViewer({ shopifyProductId }: SourceDataViewerProps) {
           </Button>
         </div>
       </div>
+
+      {/* Discrepancy Alert - Always visible when data is loaded */}
+      {!isLoadingDiscrepancy && webhookVariants.length > 0 && (
+        <DiscrepancyAlert 
+          shopifyVariants={webhookVariants} 
+          contentVariants={contentVariants}
+          parentVariantCount={parentVariantCount}
+        />
+      )}
+      
+      {isLoadingDiscrepancy && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">Checking variant consistency...</span>
+        </div>
+      )}
 
       {viewMode === 'individual' ? (
         <>
