@@ -1,10 +1,12 @@
-import { ParentProduct, ProductVariant, NocoDBResponse } from '@/types/product';
+import { ParentProduct, ProductVariant, ShopifyRawWebhook, ProductsTable } from '@/types/product';
 
 const API_BASE = 'https://nocodb.arsalanq.synology.me';
 const AUTH_TOKEN = 'TXNwjfpLHecVqeiXHx1T9Jmq4zLLmFg8JlgvvcR4';
 
 const PARENTS_TABLE_ID = 'm7jqugm928di2k5';
 const VARIANTS_TABLE_ID = 'mjqgfywpi69sbnl';
+const RAW_WEBHOOK_TABLE_ID = 'mqz554fndw3x5uz';
+const PRODUCTS_TABLE_ID = 'm9gd5o4oshz7nnq';
 
 const headers = {
   'xc-token': AUTH_TOKEN,
@@ -60,14 +62,26 @@ export async function fetchParentProducts(): Promise<ParentProduct[]> {
   const data = await fetchFromNocoDB<ParentProduct>(PARENTS_TABLE_ID, 'limit=1000');
   return data.map(product => ({
     ...product,
+    id: product.parent_id || product.id,
     status: product.status || 'pending',
   }));
 }
 
 export async function fetchProductVariants(shopifyProductId: string): Promise<ProductVariant[]> {
-  // v2 uses different filter syntax
   const filterParams = `where=(shopify_product_id,eq,${shopifyProductId})&limit=100`;
   return fetchFromNocoDB<ProductVariant>(VARIANTS_TABLE_ID, filterParams);
+}
+
+export async function fetchRawWebhook(shopifyProductId: string): Promise<ShopifyRawWebhook | null> {
+  const filterParams = `where=(shopify_product_id,eq,${shopifyProductId})&limit=1`;
+  const data = await fetchFromNocoDB<ShopifyRawWebhook>(RAW_WEBHOOK_TABLE_ID, filterParams);
+  return data.length > 0 ? data[0] : null;
+}
+
+export async function fetchProductsTableData(shopifyProductId: string): Promise<ProductsTable | null> {
+  const filterParams = `where=(shopify_product_id,eq,${shopifyProductId})&limit=1`;
+  const data = await fetchFromNocoDB<ProductsTable>(PRODUCTS_TABLE_ID, filterParams);
+  return data.length > 0 ? data[0] : null;
 }
 
 export async function updateParentProduct(
