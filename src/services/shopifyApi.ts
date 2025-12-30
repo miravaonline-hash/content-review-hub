@@ -1,8 +1,4 @@
-// Shopify Admin API service for fetching product and variant data
-// Note: These would typically be stored securely. For now using env vars.
-
-const SHOPIFY_STORE_URL = import.meta.env.VITE_SHOPIFY_STORE_URL || '';
-const SHOPIFY_ACCESS_TOKEN = import.meta.env.VITE_SHOPIFY_ACCESS_TOKEN || '';
+// Shopify API service - fetches product data via n8n proxy webhook
 
 export interface ShopifyVariant {
   id: number;
@@ -52,63 +48,59 @@ export interface ShopifyProduct {
   images: { id: number; product_id: number; position: number; src: string; alt: string | null }[];
 }
 
-export interface ShopifyApiConfig {
-  storeUrl: string;
-  accessToken: string;
+// N8N webhook configuration - stored in localStorage for easy user configuration
+const N8N_WEBHOOK_STORAGE_KEY = 'n8n_shopify_webhook_url';
+
+export function getN8nWebhookUrl(): string | null {
+  return localStorage.getItem(N8N_WEBHOOK_STORAGE_KEY);
 }
 
-// Get config from environment or stored values
-export function getShopifyConfig(): ShopifyApiConfig | null {
-  if (!SHOPIFY_STORE_URL || !SHOPIFY_ACCESS_TOKEN) {
-    return null;
-  }
-  return {
-    storeUrl: SHOPIFY_STORE_URL,
-    accessToken: SHOPIFY_ACCESS_TOKEN,
-  };
+export function setN8nWebhookUrl(url: string): void {
+  localStorage.setItem(N8N_WEBHOOK_STORAGE_KEY, url);
 }
 
-// Fetch a single product with all its variants from Shopify
+// Fetch a single product with all its variants via n8n webhook
 export async function fetchShopifyProduct(
   shopifyProductId: string,
-  config?: ShopifyApiConfig
+  webhookUrl?: string
 ): Promise<ShopifyProduct | null> {
-  const apiConfig = config || getShopifyConfig();
+  const url = webhookUrl || getN8nWebhookUrl();
   
-  if (!apiConfig) {
-    throw new Error('Shopify API not configured. Please set SHOPIFY_STORE_URL and SHOPIFY_ACCESS_TOKEN.');
+  if (!url) {
+    throw new Error('N8N webhook URL not configured. Please set the webhook URL first.');
   }
 
-  const { storeUrl, accessToken } = apiConfig;
-  
-  // Clean the store URL (remove protocol and trailing slashes)
-  const cleanStoreUrl = storeUrl
-    .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '');
-
-  const apiUrl = `https://${cleanStoreUrl}/admin/api/2024-01/products/${shopifyProductId}.json`;
-
   try {
-    const response = await fetch(apiUrl, {
-      method: 'GET',
+    const response = await fetch(url, {
+      method: 'POST',
       headers: {
-        'X-Shopify-Access-Token': accessToken,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        action: 'fetch_product',
+        shopify_product_id: shopifyProductId,
+      }),
     });
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
       const errorText = await response.text();
-      throw new Error(`Shopify API error: ${response.status} - ${errorText}`);
+      throw new Error(`N8N webhook error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    return data.product;
+    
+    // Handle different response formats from n8n
+    if (data.product) {
+      return data.product;
+    }
+    if (data.variants) {
+      // If n8n returns just variants, wrap it
+      return data as ShopifyProduct;
+    }
+    
+    return data;
   } catch (error) {
-    console.error('Failed to fetch from Shopify:', error);
+    console.error('Failed to fetch from n8n webhook:', error);
     throw error;
   }
 }
@@ -116,9 +108,9 @@ export async function fetchShopifyProduct(
 // Fetch only variants for a product
 export async function fetchShopifyVariants(
   shopifyProductId: string,
-  config?: ShopifyApiConfig
+  webhookUrl?: string
 ): Promise<ShopifyVariant[]> {
-  const product = await fetchShopifyProduct(shopifyProductId, config);
+  const product = await fetchShopifyProduct(shopifyProductId, webhookUrl);
   return product?.variants || [];
 }
 
