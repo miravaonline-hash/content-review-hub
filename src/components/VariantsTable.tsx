@@ -75,120 +75,118 @@ export function VariantsTable({ variants, isLoading, onVariantUpdated }: Variant
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody>
           {variants.map((variant) => (
-            <tr key={variant.id} className="group">
-              <td className="px-4 py-3">
-                <p className="text-sm font-medium text-foreground">
-                  {variant.variant_name || 'Unnamed Variant'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  ID: {variant.shopify_variant_id}
-                </p>
-              </td>
-              <td className="px-4 py-3">
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {variant.tech_specs_summary || 'No summary available'}
-                </p>
-              </td>
-              <td className="px-4 py-3 text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setExpandedId(expandedId === variant.id ? null : variant.id)}
-                  className="gap-1"
-                >
-                  {expandedId === variant.id ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                </Button>
-              </td>
-            </tr>
+            <>
+              <tr key={variant.id} className={cn("group border-b border-border", expandedId === variant.id && "bg-muted/20")}>
+                <td className="px-4 py-3">
+                  <p className="text-sm font-medium text-foreground">
+                    {variant.variant_name || 'Unnamed Variant'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ID: {variant.shopify_variant_id}
+                  </p>
+                </td>
+                <td className="px-4 py-3">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {variant.tech_specs_summary || 'No summary available'}
+                  </p>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpandedId(expandedId === variant.id ? null : variant.id)}
+                    className="gap-1"
+                  >
+                    {expandedId === variant.id ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </Button>
+                </td>
+              </tr>
+              {expandedId === variant.id && (
+                <tr key={`${variant.id}-expanded`}>
+                  <td colSpan={3} className="p-0">
+                    <div className="bg-muted/20 p-4 border-b border-border animate-fade-in">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-foreground">
+                            Full Specification - {variant.variant_name}
+                          </h4>
+                          <div className="flex gap-2">
+                            {editingId === variant.id ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingId(null)}
+                                  disabled={isSaving}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSave(variant)}
+                                  disabled={isSaving}
+                                  className="gap-1.5"
+                                >
+                                  {isSaving ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Save className="w-3.5 h-3.5" />
+                                  )}
+                                  Save
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(variant)}
+                                className="gap-1.5"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                Edit
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {editingId === variant.id ? (
+                          <Textarea
+                            value={editedSpecs}
+                            onChange={(e) => setEditedSpecs(e.target.value)}
+                            rows={10}
+                            className="font-mono text-xs bg-background"
+                            placeholder="Enter full specification HTML..."
+                          />
+                        ) : variant.full_specification ? (
+                          <div className="p-4 rounded-lg bg-background border border-border">
+                            <div
+                              className="html-content"
+                              dangerouslySetInnerHTML={{ __html: variant.full_specification }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-lg bg-background border border-border">
+                            <p className="text-sm text-muted-foreground italic">
+                              No full specification available
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </>
           ))}
         </tbody>
       </table>
 
-      {/* Expanded Detail Panel */}
-      {expandedId && (
-        <div className="border-t border-border bg-muted/20 p-4 animate-fade-in">
-          {(() => {
-            const variant = variants.find((v) => v.id === expandedId);
-            if (!variant) return null;
-
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-foreground">
-                    Full Specification - {variant.variant_name}
-                  </h4>
-                  <div className="flex gap-2">
-                    {editingId === variant.id ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingId(null)}
-                          disabled={isSaving}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSave(variant)}
-                          disabled={isSaving}
-                          className="gap-1.5"
-                        >
-                          {isSaving ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Save className="w-3.5 h-3.5" />
-                          )}
-                          Save
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(variant)}
-                        className="gap-1.5"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Edit
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {editingId === variant.id ? (
-                  <Textarea
-                    value={editedSpecs}
-                    onChange={(e) => setEditedSpecs(e.target.value)}
-                    rows={10}
-                    className="font-mono text-xs bg-background"
-                    placeholder="Enter full specification HTML..."
-                  />
-                ) : variant.full_specification ? (
-                  <div className="p-4 rounded-lg bg-background border border-border">
-                    <div
-                      className="html-content"
-                      dangerouslySetInnerHTML={{ __html: variant.full_specification }}
-                    />
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-lg bg-background border border-border">
-                    <p className="text-sm text-muted-foreground italic">
-                      No full specification available
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )}
     </div>
   );
 }
