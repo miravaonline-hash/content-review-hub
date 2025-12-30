@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   pim-dashboard:
-    image: ghcr.io/arsalanq/pim-dashboard:latest
+    image: ghcr.io/miravaonline-hash/pim-dashboard:latest
     container_name: pim-dashboard
     restart: unless-stopped
     ports:
