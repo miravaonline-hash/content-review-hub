@@ -1,14 +1,17 @@
-import { useState } from 'react';
-import { RefreshCw, Check, AlertTriangle, Loader2, ArrowRight, Plus, Minus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { RefreshCw, Check, AlertTriangle, Loader2, ArrowRight, Plus, Minus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { ProductVariant } from '@/types/product';
 import { 
   fetchShopifyProduct, 
   ShopifyVariant, 
   ShopifyProduct,
   compareVariants,
-  VariantComparison 
+  VariantComparison,
+  getN8nWebhookUrl,
+  setN8nWebhookUrl
 } from '@/services/shopifyApi';
 import { updateProductVariant } from '@/services/nocodbApi';
 import { toast } from 'sonner';
@@ -31,8 +34,26 @@ export function ShopifySyncTab({
   const [comparisons, setComparisons] = useState<VariantComparison[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [hasPulled, setHasPulled] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState(getN8nWebhookUrl() || '');
+  const [isWebhookConfigured, setIsWebhookConfigured] = useState(!!getN8nWebhookUrl());
 
-  const handlePullFromShopify = async () => {
+  useEffect(() => {
+    const stored = getN8nWebhookUrl();
+    if (stored) {
+      setWebhookUrl(stored);
+      setIsWebhookConfigured(true);
+    }
+  }, []);
+
+  const handleSaveWebhookUrl = () => {
+    if (webhookUrl.trim()) {
+      setN8nWebhookUrl(webhookUrl.trim());
+      setIsWebhookConfigured(true);
+      setShowSettings(false);
+      toast.success('Webhook URL saved');
+    }
+  };
     setIsPulling(true);
     try {
       const product = await fetchShopifyProduct(shopifyProductId);
@@ -163,26 +184,70 @@ export function ShopifySyncTab({
 
   return (
     <div className="space-y-6">
+      {/* Webhook Configuration */}
+      {(!isWebhookConfigured || showSettings) && (
+        <div className="p-4 rounded-xl bg-warning/10 border border-warning/30 space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-foreground flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                N8N Webhook Configuration
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Enter your n8n webhook URL that fetches product data from Shopify Admin API
+              </p>
+            </div>
+            {isWebhookConfigured && (
+              <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)}>
+                Cancel
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="https://your-n8n-instance.com/webhook/..."
+              className="flex-1"
+            />
+            <Button onClick={handleSaveWebhookUrl} disabled={!webhookUrl.trim()}>
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Pull Action */}
       <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
         <div>
           <h4 className="font-medium text-foreground">Pull from Shopify</h4>
           <p className="text-sm text-muted-foreground">
-            Fetch the latest variant data directly from Shopify Admin API
+            Fetch the latest variant data via n8n webhook
           </p>
         </div>
-        <Button
-          onClick={handlePullFromShopify}
-          disabled={isPulling}
-          className="gap-2"
-        >
-          {isPulling ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <RefreshCw className="w-4 h-4" />
+        <div className="flex gap-2">
+          {isWebhookConfigured && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSettings(true)}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
           )}
-          {isPulling ? 'Pulling...' : 'Pull Variants'}
-        </Button>
+          <Button
+            onClick={handlePullFromShopify}
+            disabled={isPulling || !isWebhookConfigured}
+            className="gap-2"
+          >
+            {isPulling ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {isPulling ? 'Pulling...' : 'Pull Variants'}
+          </Button>
+        </div>
       </div>
 
       {/* Comparison Results */}
