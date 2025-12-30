@@ -73,8 +73,34 @@ export async function fetchProductVariants(shopifyProductId: string): Promise<Pr
 }
 
 export async function fetchRawWebhook(shopifyProductId: string): Promise<ShopifyRawWebhook | null> {
+  // Try both string and number comparisons since NocoDB may store as either type
   const filterParams = `where=(shopify_product_id,eq,${shopifyProductId})&limit=1`;
-  const data = await fetchFromNocoDB<ShopifyRawWebhook>(RAW_WEBHOOK_TABLE_ID, filterParams);
+  let data = await fetchFromNocoDB<ShopifyRawWebhook>(RAW_WEBHOOK_TABLE_ID, filterParams);
+  
+  // If no data found, check if the table uses a different field name
+  if (data.length === 0) {
+    // Try without filter to debug - get all and filter client-side
+    const allData = await fetchFromNocoDB<ShopifyRawWebhook>(RAW_WEBHOOK_TABLE_ID, 'limit=100');
+    console.log('Raw webhook sample:', allData[0]);
+    
+    // Find matching record by checking various field names
+    const match = allData.find(item => {
+      const payload = typeof item.raw_payload === 'string' ? JSON.parse(item.raw_payload) : item.raw_payload;
+      const fullPayload = typeof (item as any).full_payload === 'string' 
+        ? JSON.parse((item as any).full_payload) 
+        : (item as any).full_payload;
+      
+      return String(item.shopify_product_id) === String(shopifyProductId) ||
+             String(payload?.id) === String(shopifyProductId) ||
+             String(fullPayload?.id) === String(shopifyProductId) ||
+             String((item as any).product_id) === String(shopifyProductId);
+    });
+    
+    if (match) {
+      return match;
+    }
+  }
+  
   return data.length > 0 ? data[0] : null;
 }
 

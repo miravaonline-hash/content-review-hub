@@ -64,6 +64,7 @@ function VariantCard({
   const title = ('title' in variant ? String(variant.title) : String(variant.variant_name || '')) || `Variant ${index + 1}`;
   const sku = String(variant.sku || 'N/A');
   const price = String(variant.price || 'N/A');
+  const compareAtPrice = 'compare_at_price' in variant ? String(variant.compare_at_price || '') : '';
   
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -72,10 +73,13 @@ function VariantCard({
         onClick={onToggle}
         className="w-full justify-between p-3 h-auto rounded-none hover:bg-muted/50"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Package className="w-3 h-3 text-muted-foreground" />
           <span className="font-medium text-sm">{title}</span>
-          <span className="text-xs text-muted-foreground">SKU: {sku}</span>
+          <span className="text-xs text-green-600 dark:text-green-400 font-medium">${price}</span>
+          {compareAtPrice && compareAtPrice !== 'null' && (
+            <span className="text-xs text-muted-foreground line-through">${compareAtPrice}</span>
+          )}
         </div>
         {isExpanded ? (
           <ChevronDown className="w-4 h-4" />
@@ -86,8 +90,14 @@ function VariantCard({
       
       {isExpanded && (
         <div className="border-t border-border p-3 bg-muted/20 grid grid-cols-2 gap-3 text-sm">
-          <FieldRow label="Price" value={price} />
+          <FieldRow label="Price" value={`$${price}`} />
+          {compareAtPrice && compareAtPrice !== 'null' && (
+            <FieldRow label="Compare at Price" value={`$${compareAtPrice}`} />
+          )}
           <FieldRow label="SKU" value={sku} />
+          {'barcode' in variant && variant.barcode && (
+            <FieldRow label="Barcode" value={String(variant.barcode)} />
+          )}
           {'option1' in variant && variant.option1 && (
             <FieldRow label="Option 1" value={String(variant.option1)} />
           )}
@@ -105,6 +115,9 @@ function VariantCard({
           )}
           {'weight' in variant && variant.weight && (
             <FieldRow label="Weight" value={`${variant.weight} ${variant.weight_unit || ''}`} />
+          )}
+          {'taxable' in variant && (
+            <FieldRow label="Taxable" value={variant.taxable ? 'Yes' : 'No'} />
           )}
         </div>
       )}
@@ -224,7 +237,10 @@ export function SourceDataViewer({ shopifyProductId }: SourceDataViewerProps) {
     return [];
   };
 
-  const webhookPayload = rawWebhook ? parsePayload(rawWebhook.raw_payload) : null;
+  // Handle both raw_payload and full_payload field names
+  const webhookPayload = rawWebhook 
+    ? parsePayload(rawWebhook.raw_payload || rawWebhook.full_payload || {}) 
+    : null;
   const webhookVariants = (webhookPayload?.variants as ShopifyWebhookVariant[]) || [];
   const productsVariants = productsData ? parseVariants(productsData.variants) : [];
 
