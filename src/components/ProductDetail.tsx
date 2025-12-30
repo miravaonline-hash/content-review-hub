@@ -3,9 +3,11 @@ import { Check, X, Edit3, Save, Loader2, Tag, FileText, Hash } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from './StatusBadge';
 import { VariantsTable } from './VariantsTable';
 import { SourceDataViewer } from './SourceDataViewer';
+import { ShopifySyncTab } from './ShopifySyncTab';
 import { ParentProduct, ProductVariant } from '@/types/product';
 import { fetchProductVariants, updateParentProduct } from '@/services/nocodbApi';
 import { toast } from 'sonner';
@@ -266,27 +268,58 @@ export function ProductDetail({ product, onProductUpdated }: ProductDetailProps)
           </Button>
         </div>
 
-        {/* Source Data Section */}
-        <SourceDataViewer 
-          shopifyProductId={String(product.shopify_product_id)} 
-          parentVariantCount={product.product_content_variants}
-        />
+        {/* Tabs for different sections */}
+        <Tabs defaultValue="content" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsTrigger value="source">Source Data</TabsTrigger>
+            <TabsTrigger value="sync">Shopify Sync</TabsTrigger>
+          </TabsList>
 
-        {/* Variants Section */}
-        <div>
-          <h3 className="text-lg font-semibold text-foreground mb-4">
-            Product Variants
-          </h3>
-          <VariantsTable
-            variants={variants}
-            isLoading={isLoadingVariants}
-            onVariantUpdated={(updated) => {
-              setVariants((prev) =>
-                prev.map((v) => (v.id === updated.id ? updated : v))
-              );
-            }}
-          />
-        </div>
+          <TabsContent value="content" className="space-y-6">
+            {/* Variants Section */}
+            <div>
+              <h3 className="text-lg font-semibold text-foreground mb-4">
+                Product Variants
+              </h3>
+              <VariantsTable
+                variants={variants}
+                isLoading={isLoadingVariants}
+                onVariantUpdated={(updated) => {
+                  setVariants((prev) =>
+                    prev.map((v) => (v.id === updated.id ? updated : v))
+                  );
+                }}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="source">
+            <SourceDataViewer 
+              shopifyProductId={String(product.shopify_product_id)} 
+              parentVariantCount={product.product_content_variants}
+            />
+          </TabsContent>
+
+          <TabsContent value="sync">
+            <ShopifySyncTab
+              shopifyProductId={String(product.shopify_product_id)}
+              localVariants={variants}
+              onVariantsUpdated={async () => {
+                // Reload variants after sync
+                setIsLoadingVariants(true);
+                try {
+                  const data = await fetchProductVariants(product.shopify_product_id);
+                  setVariants(data);
+                } catch (error) {
+                  console.error('Failed to reload variants:', error);
+                } finally {
+                  setIsLoadingVariants(false);
+                }
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
