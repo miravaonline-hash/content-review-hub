@@ -267,7 +267,10 @@ export function ProductDetail({ product, onProductUpdated }: ProductDetailProps)
         </div>
 
         {/* Source Data Section */}
-        <SourceDataViewer shopifyProductId={String(product.shopify_product_id)} />
+        <SourceDataViewer 
+          shopifyProductId={String(product.shopify_product_id)} 
+          parentVariantCount={product.product_content_variants}
+        />
 
         {/* Variants Section */}
         <div>
