@@ -25,8 +25,8 @@ export function ProductList({
     const query = searchQuery.toLowerCase();
     return products.filter(
       (product) =>
-        product.product_name?.toLowerCase().includes(query) ||
-        product.shopify_product_id?.toLowerCase().includes(query)
+        product.generic_title?.toLowerCase().includes(query) ||
+        String(product.shopify_product_id)?.toLowerCase().includes(query)
     );
   }, [products, searchQuery]);
 
@@ -113,7 +113,7 @@ export function ProductList({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-sidebar-foreground truncate">
-                      {product.product_name || 'Untitled Product'}
+                      {product.generic_title || 'Untitled Product'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       ID: {product.shopify_product_id}

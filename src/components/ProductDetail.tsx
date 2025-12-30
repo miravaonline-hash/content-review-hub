@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from './StatusBadge';
 import { VariantsTable } from './VariantsTable';
+import { SourceDataViewer } from './SourceDataViewer';
 import { ParentProduct, ProductVariant } from '@/types/product';
 import { fetchProductVariants, updateParentProduct } from '@/services/nocodbApi';
 import { toast } from 'sonner';
@@ -92,7 +93,7 @@ export function ProductDetail({ product, onProductUpdated }: ProductDetailProps)
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-semibold text-foreground">
-                {product.product_name || 'Untitled Product'}
+                {product.generic_title || 'Untitled Product'}
               </h2>
               <StatusBadge status={product.status} />
             </div>
@@ -264,6 +265,9 @@ export function ProductDetail({ product, onProductUpdated }: ProductDetailProps)
             Approve
           </Button>
         </div>
+
+        {/* Source Data Section */}
+        <SourceDataViewer shopifyProductId={String(product.shopify_product_id)} />
 
         {/* Variants Section */}
         <div>
