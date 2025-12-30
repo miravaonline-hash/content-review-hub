@@ -1,9 +1,99 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Database, Webhook, Loader2, Package, Columns, ArrowRight, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Database, Webhook, Loader2, Package, Columns, ArrowRight, AlertTriangle, CheckCircle, Image as ImageIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
 import { ShopifyRawWebhook, ProductsTable, ShopifyWebhookVariant, ProductsTableVariant, ProductVariant } from '@/types/product';
 import { fetchRawWebhook, fetchProductsTableData, fetchProductVariants } from '@/services/nocodbApi';
 import { cn } from '@/lib/utils';
+
+interface ShopifyImage {
+  src: string;
+  alt?: string;
+  id?: number;
+}
+
+function ImageGallery({ images }: { images: ShopifyImage[] }) {
+  const [selectedImage, setSelectedImage] = useState<ShopifyImage | null>(null);
+  
+  if (!images || images.length === 0) return null;
+  
+  return (
+    <div>
+      <span className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block flex items-center gap-1">
+        <ImageIcon className="w-3 h-3" />
+        Product Images ({images.length})
+      </span>
+      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+        {images.map((image, idx) => (
+          <button
+            key={image.id || idx}
+            onClick={() => setSelectedImage(image)}
+            className="aspect-square rounded-lg border border-border overflow-hidden hover:ring-2 hover:ring-primary transition-all bg-background group"
+          >
+            <img
+              src={image.src}
+              alt={image.alt || `Product image ${idx + 1}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+              loading="lazy"
+            />
+          </button>
+        ))}
+      </div>
+      
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-background/95 backdrop-blur">
+          <DialogClose className="absolute right-3 top-3 z-10 rounded-full bg-background/80 p-2 hover:bg-background transition-colors">
+            <X className="w-4 h-4" />
+          </DialogClose>
+          {selectedImage && (
+            <div className="relative">
+              <img
+                src={selectedImage.src}
+                alt={selectedImage.alt || 'Product image'}
+                className="w-full h-auto max-h-[80vh] object-contain"
+              />
+              {selectedImage.alt && (
+                <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
+                  <p className="text-white text-sm">{selectedImage.alt}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function extractImagesFromHtml(html: string): ShopifyImage[] {
+  const images: ShopifyImage[] = [];
+  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>/gi;
+  let match;
+  
+  while ((match = imgRegex.exec(html)) !== null) {
+    const src = match[1];
+    const alt = match[2] || '';
+    // Filter out tiny tracking pixels and icons
+    if (src && !src.includes('tracking') && !src.includes('pixel')) {
+      images.push({ src, alt });
+    }
+  }
+  
+  // Also try to find src before alt
+  const imgRegex2 = /<img[^>]*alt=["']([^"']*)["'][^>]+src=["']([^"']+)["'][^>]*>/gi;
+  while ((match = imgRegex2.exec(html)) !== null) {
+    const alt = match[1] || '';
+    const src = match[2];
+    if (src && !src.includes('tracking') && !src.includes('pixel')) {
+      // Check if already added
+      if (!images.some(img => img.src === src)) {
+        images.push({ src, alt });
+      }
+    }
+  }
+  
+  return images;
+}
 
 interface SourceDataViewerProps {
   shopifyProductId: string;
@@ -466,11 +556,25 @@ export function SourceDataViewer({ shopifyProductId, parentVariantCount }: Sourc
                       <FieldRow label="Received At" value={rawWebhook?.received_at} />
                     </div>
 
+                    {/* Product Images from webhook images array or extracted from body_html */}
+                    {(() => {
+                      const webhookImages = (webhookPayload.images as ShopifyImage[]) || [];
+                      const htmlImages = webhookPayload.body_html 
+                        ? extractImagesFromHtml(webhookPayload.body_html as string)
+                        : [];
+                      const allImages = [...webhookImages, ...htmlImages];
+                      // Deduplicate by src
+                      const uniqueImages = allImages.filter((img, idx, arr) => 
+                        arr.findIndex(i => i.src === img.src) === idx
+                      );
+                      return uniqueImages.length > 0 ? <ImageGallery images={uniqueImages} /> : null;
+                    })()}
+
                     {webhookPayload.body_html && (
                       <div>
                         <span className="text-xs text-muted-foreground uppercase tracking-wide">Product Description</span>
                         <div 
-                          className="mt-1 p-3 bg-background rounded-lg border border-border text-sm html-content"
+                          className="mt-1 p-3 bg-background rounded-lg border border-border text-sm html-content [&_img]:hidden"
                           dangerouslySetInnerHTML={{ __html: webhookPayload.body_html as string }}
                         />
                       </div>
